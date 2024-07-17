@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Tests of the Auxiliary Subordinate application class."""
-
 import pytest
 
 from cou.apps.auxiliary_subordinate import (
@@ -203,6 +202,49 @@ def test_ovn_subordinate_upgrade_plan(model):
             parallel=False,
             coro=model.upgrade_charm(app.name, "22.03/stable"),
         )
+    ]
+    expected_plan.add_steps(upgrade_steps)
+
+    upgrade_plan = app.generate_upgrade_plan(target, False)
+
+    assert_steps(upgrade_plan, expected_plan)
+
+
+def test_ovn_subordinate_upgrade_plan_auto_restart_False(model):
+    """Test generating plan for OVNSubordinate when enable-auto-restarts is False."""
+    target = OpenStackRelease("victoria")
+    machines = {"0": generate_cou_machine("0", "az-0")}
+    app = OVNSubordinate(
+        name="ovn-chassis",
+        can_upgrade_to="22.03/stable",
+        charm="ovn-chassis",
+        channel="22.03/stable",
+        config={
+            "enable-version-pinning": {"value": False},
+            "enable-auto-restarts": {"value": False},
+        },
+        machines=machines,
+        model=model,
+        origin="ch",
+        series="focal",
+        subordinate_to=["nova-compute"],
+        subordinate_units=[SubordinateUnit("ovn-chassis/0", "ovn-chassis")],
+        units={},
+        workload_version="22.3",
+    )
+
+    expected_plan = ApplicationUpgradePlan(
+        description=f"Upgrade plan for '{app.name}' to '{target}'"
+    )
+
+    upgrade_steps = [
+        *tuple(app.get_run_deferred_hooks_and_restart_pre_upgrade_step()),
+        PreUpgradeStep(
+            description=f"Refresh '{app.name}' to the latest revision of '22.03/stable'",
+            parallel=False,
+            coro=model.upgrade_charm(app.name, "22.03/stable"),
+        ),
+        *tuple(app.get_run_deferred_hooks_and_restart_post_upgrade_step()),
     ]
     expected_plan.add_steps(upgrade_steps)
 
